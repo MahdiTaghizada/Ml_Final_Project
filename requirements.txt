@@ -1,0 +1,7 @@
+# Versions this project was developed and tested with (Python 3.12.3).
+# scikit-learn is used ONLY for the baselines in src/run_all.py and for the
+# reference checks in tests/ - never inside our own models.
+numpy==2.4.4
+pandas==3.0.2
+matplotlib==3.10.8
+scikit-learn==1.8.0

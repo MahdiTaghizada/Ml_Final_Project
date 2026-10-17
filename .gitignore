@@ -1,1 +1,33 @@
 data/house_sale.csv
+
+# Local dataset and temporary files
+data/*
+!data/README.md
+!data/.gitkeep
+.~lock.*
+
+# Python cache and environments
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+
+# Generated results
+results/*
+!results/.gitkeep
+
+# LaTeX generated files
+*.aux
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+*.toc
+*.synctex.gz
+
+# Notebook/editor files
+.ipynb_checkpoints/
+.DS_Store
+.idea/
+.vscode/
