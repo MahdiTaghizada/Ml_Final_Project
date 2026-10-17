@@ -113,3 +113,64 @@ def classification_report(y_true, y_pred, scores) -> dict:
     p, r, f = precision_recall_f1(y_true, y_pred)
     return {"accuracy": accuracy(y_true, y_pred), "precision": p, "recall": r, "f1": f,
             "roc_auc": roc_auc(y_true, scores), "pr_auc": average_precision(y_true, scores)}
+
+
+# --- Resampling (uncertainty) ---------------------------------------------------
+def kfold_indices(n, k=5, seed=42, strata=None):
+    """List of (train_idx, test_idx) for k-fold CV (stratified if `strata` given)."""
+    rng = np.random.default_rng(seed)
+    fold_of = np.empty(n, dtype=int)
+    groups = [np.arange(n)] if strata is None else [np.flatnonzero(strata == g) for g in np.unique(strata)]
+    for idx in groups:
+        idx = rng.permutation(idx)
+        fold_of[idx] = np.arange(len(idx)) % k
+    return [(np.flatnonzero(fold_of != f), np.flatnonzero(fold_of == f)) for f in range(k)]
+
+
+def cross_validate(fit_eval, n, k=5, seed=42, strata=None) -> dict:
+    """
+    fit_eval(train_idx, test_idx) -> dict of metrics.  Returns {metric: (mean, std)}.
+    Preprocessing statistics must be computed INSIDE fit_eval, from train_idx only.
+    """
+    rows = [fit_eval(tr, te) for tr, te in kfold_indices(n, k, seed, strata)]
+    return {m: (float(np.mean([r[m] for r in rows])), float(np.std([r[m] for r in rows], ddof=1)))
+            for m in rows[0]}
+
+
+def bootstrap_ci(metric_fn, *arrays, n_boot=200, seed=42, alpha=0.05):
+    """Percentile bootstrap CI of metric_fn(*arrays) over test-set resamples."""
+    rng = np.random.default_rng(seed)
+    n = len(arrays[0])
+    vals = [metric_fn(*[a[i] for a in arrays]) for i in (rng.integers(0, n, n) for _ in range(n_boot))]
+    return float(np.quantile(vals, alpha / 2)), float(np.quantile(vals, 1 - alpha / 2))
+
+
+# --- Comparison helper ------------------------------------------------------------
+def compare(name_to_metrics: dict, title: str = "") -> str:
+    """
+    Pretty-print a table: rows = models, columns = metrics.  Values may be floats
+    or (mean, std) tuples.  Returns the string as well.
+    """
+    cols = []
+    for m in name_to_metrics.values():
+        for c in m:
+            if c not in cols:
+                cols.append(c)
+
+    def fmt(v):
+        if v is None:
+            return "-"
+        if isinstance(v, tuple):
+            return f"{v[0]:.4g} +/- {v[1]:.2g}"
+        return f"{v:.4g}" if isinstance(v, (int, float, np.floating)) else str(v)
+
+    width = max(len(n) for n in name_to_metrics) + 2
+    cw = {c: max(len(c), *(len(fmt(m.get(c))) for m in name_to_metrics.values())) + 2 for c in cols}
+    lines = [title] if title else []
+    lines.append("model".ljust(width) + "".join(c.rjust(cw[c]) for c in cols))
+    lines.append("-" * (width + sum(cw.values())))
+    for name, m in name_to_metrics.items():
+        lines.append(name.ljust(width) + "".join(fmt(m.get(c)).rjust(cw[c]) for c in cols))
+    out = "\n".join(lines)
+    print(out)
+    return out
